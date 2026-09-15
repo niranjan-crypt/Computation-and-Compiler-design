@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TOC-AV :: Formal Verification System</title>
+  <link rel="stylesheet" href="css/theme.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ══════════════════════════════════════
+       NAVIGATION BAR
+  ══════════════════════════════════════ -->
+  <nav class="nav-bar">
+    <div class="nav-logo">TOC<span>·</span>AV</div>
+
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-tab="dashboard" onclick="switchTab('dashboard')">
+        Mission Control
+        <span class="tab-unit">UNIT 1 + 3 · DFA · TIMED AUTOMATON</span>
+      </button>
+      <button class="nav-tab" data-tab="grammar" onclick="switchTab('grammar')">
+        Grammar Lab
+        <span class="tab-unit">UNIT 2 · CFG · NPDA · PARSE TREE</span>
+      </button>
+      <button class="nav-tab" data-tab="automata" onclick="switchTab('automata')">
+        Automata Viewer
+        <span class="tab-unit">UNIT 1+3 · NFA→DFA · TURING MACHINE</span>
+      </button>
+    </div>
+
+    <div class="nav-status">
+      <div class="status-pill" id="pillTM">
+        <span class="dot yellow" id="dotTM"></span>
+        <span id="lblTM">TM</span>
+      </div>
+      <div class="status-pill" id="pillCFG">
+        <span class="dot yellow" id="dotCFG"></span>
+        <span id="lblCFG">CFG</span>
+      </div>
+      <div class="status-pill">
+        <span class="dot"></span>
+        <span id="clockEl">--:--:--</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ══════════════════════════════════════
+       SHARED INPUT STRIP (visible on all tabs)
+  ══════════════════════════════════════ -->
+  <div class="input-strip">
+    <span class="input-label">▶ ROUTE</span>
+    <input id="routeInput" class="route-input"
+      placeholder="e.g.  SEARCH SEARCH STOP REVERSE ALIGN PARK"
+      maxlength="200">
+    <button class="btn" onclick="handleCompile()">COMPILE &amp; VERIFY</button>
+    <button class="btn btn-red" onclick="handleReset()">RESET</button>
+    <div class="preset-group">
+      <span class="preset-label">PRESETS:</span>
+      <button class="preset-btn" onclick="setPreset('SEARCH STOP REVERSE ALIGN PARK')">Basic Park</button>
+      <button class="preset-btn" onclick="setPreset('SEARCH SEARCH SEARCH STOP REVERSE ALIGN PARK')">Multi-Search</button>
+      <button class="preset-btn" onclick="setPreset('SEARCH STOP PARK')">Syntax Error</button>
+      <button class="preset-btn" onclick="setPreset('DRIVE STOP PARK')">Invalid Token</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       TAB 1 — MISSION CONTROL
+  ══════════════════════════════════════ -->
+  <div id="tab-dashboard" class="tab-screen active">
+    <div style="display:grid;grid-template-columns:220px 1fr 200px;gap:1px;background:var(--border);flex:1">
+
+      <!-- LEFT: FSM State List -->
+      <div class="panel" style="overflow-y:auto">
+        <div class="panel-title">FSM STATES <span class="badge">DFA 5-TUPLE</span></div>
+        <div id="fsmStateList" class="fsm-state-list"></div>
+
+        <hr class="divider">
+
+        <div class="panel-title">TRANSITION LOG</div>
+        <div id="fsmTransitionLog" class="sys-log" style="height:160px"></div>
+      </div>
+
+      <!-- CENTER: Simulation Canvas -->
+      <div class="panel" style="display:flex;flex-direction:column;gap:12px">
+        <div class="panel-title">
+          VEHICLE SIMULATION
+          <span class="badge" id="simStateBadge">IDLE</span>
+        </div>
+        <canvas id="simCanvas"></canvas>
+
+        <div class="control-grid">
+          <button class="ctrl-btn" onclick="sendToken('SEARCH')">[S]<br>SEARCH</button>
+          <button class="ctrl-btn" onclick="sendToken('STOP')">[␣]<br>STOP</button>
+          <button class="ctrl-btn" onclick="sendToken('REVERSE')">[R]<br>REVERSE</button>
+          <button class="ctrl-btn" onclick="sendToken('ALIGN')">[A]<br>ALIGN</button>
+          <button class="ctrl-btn" onclick="sendToken('PARK')">[P]<br>PARK</button>
+          <button class="ctrl-btn ctrl-danger" onclick="sendToken('OBSTACLE')">[O]<br>OBSTACLE</button>
+          <button class="ctrl-btn" onclick="sendToken('CLEAR')">[C]<br>CLEAR</button>
+        </div>
+
+        <div class="metric-grid metric-grid-4">
+          <div class="metric-card">
+            <div class="metric-card-label">CURRENT STATE</div>
+            <div class="metric-card-value small" id="metState">q0</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-card-label">REACTION TIME</div>
+            <div class="metric-card-value green small" id="metReaction">—</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-card-label">TOKENS SENT</div>
+            <div class="metric-card-value small" id="metTokens">0</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-card-label">FSM STATUS</div>
+            <div class="metric-card-value small" id="metStatus">READY</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: System log + keyboard hint -->
+      <div class="panel" style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
+        <div class="panel-title">SYSTEM LOG <span class="badge">LIVE</span></div>
+        <div id="sysLog" class="sys-log" style="flex:1;max-height:340px"></div>
+
+        <hr class="divider">
+        <div class="panel-title">KEYBOARD</div>
+        <div style="font-size:0.58rem;line-height:2.2;color:var(--text-dim)">
+          <div><span style="color:var(--cyan)">[S]</span> SEARCH</div>
+          <div><span style="color:var(--cyan)">[Space]</span> STOP</div>
+          <div><span style="color:var(--cyan)">[R]</span> REVERSE</div>
+          <div><span style="color:var(--cyan)">[A]</span> ALIGN</div>
+          <div><span style="color:var(--cyan)">[P]</span> PARK</div>
+          <div><span style="color:var(--red)">[O]</span> OBSTACLE</div>
+          <div><span style="color:var(--cyan)">[C]</span> CLEAR</div>
+          <div><span style="color:var(--cyan)">[Enter]</span> COMPILE</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       TAB 2 — GRAMMAR LAB
+  ══════════════════════════════════════ -->
+  <div id="tab-grammar" class="tab-screen">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);flex:1">
+
+      <!-- LEFT: Parse Tree + controls -->
+      <div class="panel" style="display:flex;flex-direction:column;gap:12px">
+        <div class="panel-title">
+          PARSE TREE
+          <span class="badge badge-purple">CFG DERIVATION</span>
+        </div>
+        <canvas id="parseTreeCanvas"></canvas>
+
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="label">DERIVATION STEP-THROUGH:</span>
+          <button class="btn" onclick="ParserView.stepBack()">◀ PREV</button>
+          <button class="btn" onclick="ParserView.stepForward()">NEXT ▶</button>
+          <button class="btn btn-yellow" onclick="ParserView.resetStep()">RESET</button>
+        </div>
+
+        <div class="panel-title">LEFTMOST DERIVATION</div>
+        <div id="derivationSteps" style="overflow-y:auto;max-height:180px"></div>
+      </div>
+
+      <!-- RIGHT: NPDA Stack + Grammar + PDA log -->
+      <div class="panel" style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
+
+        <div class="panel-title">NPDA STACK <span class="badge badge-purple">UNIT 2</span></div>
+        <div class="stack-container" id="pdaStackEl">
+          <span class="stack-bottom-label">⊥ Z₀ BOTTOM</span>
+        </div>
+        <div style="font-size:0.65rem">
+          PDA State: <span id="pdaCurrentState" style="color:var(--purple);font-family:var(--font-display)">—</span>
+        </div>
+
+        <hr class="divider">
+
+        <div class="panel-title">GRAMMAR (CNF-COMPATIBLE) <span class="badge">UNIT 2</span></div>
+        <div class="grammar-rules">
+          <div><span class="grammar-nt">S</span><span class="grammar-arrow">→</span><span class="grammar-t">SEARCH</span> <span class="grammar-nt">PHASE</span></div>
+          <div><span class="grammar-nt">PHASE</span><span class="grammar-arrow">→</span><span class="grammar-t">SEARCH</span> <span class="grammar-nt">PHASE</span></div>
+          <div><span class="grammar-nt">PHASE</span><span class="grammar-arrow">→</span><span class="grammar-t">STOP</span> <span class="grammar-nt">TAIL</span></div>
+          <div><span class="grammar-nt">TAIL</span><span class="grammar-arrow">→</span><span class="grammar-t">REVERSE</span> <span class="grammar-nt">END</span></div>
+          <div><span class="grammar-nt">END</span><span class="grammar-arrow">→</span><span class="grammar-t">ALIGN</span> <span class="grammar-t">PARK</span></div>
+          <div class="grammar-note">✓ All rules are A→BC or A→a — CNF-compatible</div>
+          <div class="grammar-note">✓ Unique leftmost derivation — grammar is unambiguous</div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="panel-title">PDA TRANSITION LOG</div>
+        <div id="pdaTransitionLog" class="sys-log" style="max-height:220px"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       TAB 3 — AUTOMATA VIEWER
+  ══════════════════════════════════════ -->
+  <div id="tab-automata" class="tab-screen">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);flex:1">
+
+      <!-- LEFT: NFA + Subset Construction -->
+      <div class="panel" style="display:flex;flex-direction:column;gap:12px">
+        <div class="panel-title">NFA DIAGRAM <span class="badge">UNIT 1</span></div>
+        <div style="font-size:0.58rem;color:var(--text-dim)">
+          Non-deterministic FA with ε-transition. Active states highlighted per FSM.
+        </div>
+        <canvas id="nfaCanvas"></canvas>
+
+        <hr class="divider">
+
+        <div class="panel-title">SUBSET CONSTRUCTION: NFA → DFA <span class="badge badge-green">UNIT 1</span></div>
+        <div style="font-size:0.58rem;color:var(--text-dim);margin-bottom:4px">
+          ε-closure applied. Each NFA state-set maps to one DFA state.
+        </div>
+        <div id="subsetConstructionEl"></div>
+
+        <hr class="divider">
+
+        <div class="panel-title">DFA TRANSITION TABLE <span class="badge">MINIMIZED</span></div>
+        <table class="dfa-table">
+          <thead>
+            <tr>
+              <th>State</th>
+              <th>SRCH</th><th>STOP</th><th>REV</th><th>ALGN</th><th>PARK</th>
+            </tr>
+          </thead>
+          <tbody id="dfaTableBody"></tbody>
+        </table>
+        <div style="font-size:0.55rem;color:var(--dim);margin-top:4px">
+          → Start state &nbsp;|&nbsp; ⊙ Accept/Final state &nbsp;|&nbsp; — Dead (no transition)
+        </div>
+      </div>
+
+      <!-- RIGHT: Turing Machine -->
+      <div class="panel" style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
+        <div class="panel-title">
+          TURING MACHINE
+          <span class="badge badge-yellow">UNIT 3 · JFLAP</span>
+        </div>
+        <div style="font-size:0.6rem;color:var(--text-dim);line-height:1.8">
+          Based on JFLAP diagram:
+          <span style="color:var(--yellow)">q0</span>
+          <span style="color:var(--dim)">—(P;b,R)→</span>
+          <span style="color:var(--yellow)">q1</span>
+          <span style="color:var(--dim)">—(□;r,R)→</span>
+          <span style="color:var(--yellow)">q2</span>
+          <span style="color:var(--dim)">—(□;s,S)→</span>
+          <span style="color:var(--green)">q3 ⊙</span>
+        </div>
+        <div style="font-size:0.58rem;color:var(--text-dim)">
+          Phase 1: Scans full tape, validates alphabet Σ.<br>
+          Phase 2: Finds PARK token → writes <span style="color:var(--green)">b</span>(brake),
+          <span style="color:var(--green)">r</span>(reverse), <span style="color:var(--green)">s</span>(stop) signals.
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="label">TM STATE:</span>
+          <span id="tmCurrentState" style="color:var(--yellow);font-family:var(--font-display);font-size:0.7rem">q_init</span>
+          <span id="tmStepCounter" style="color:var(--dim);font-size:0.6rem;margin-left:auto">—</span>
+        </div>
+
+        <div class="tm-tape-scroll">
+          <div class="tm-tape" id="tmTapeEl">
+            <div class="tm-cell blank">□</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" onclick="AutomataView.tmStepBack()">◀ PREV</button>
+          <button class="btn" onclick="AutomataView.tmStepForward()">NEXT ▶</button>
+          <button class="btn btn-yellow" onclick="AutomataView.tmReset()">RESET HEAD</button>
+        </div>
+
+        <hr class="divider">
+
+        <div class="panel-title">TM EXECUTION LOG</div>
+        <div id="tmLogEl" class="sys-log" style="flex:1;max-height:280px"></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     MODAL
+══════════════════════════════════════ -->
+<div class="overlay" id="modalOverlay">
+  <div class="modal" id="modalBox">
+    <div class="modal-title" id="modalTitle">RESULT</div>
+    <div class="modal-body"  id="modalBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-green" onclick="closeModal()">ACKNOWLEDGE</button>
+      <button class="btn btn-red"   onclick="closeModal()">DISMISS</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     SCRIPTS — order matters: core first
+══════════════════════════════════════ -->
+<script src="js/core.js"></script>
+<script src="js/simulation.js"></script>
+<script src="js/parser-view.js"></script>
+<script src="js/automata-view.js"></script>
+<script>
+/* ── App controller (thin glue layer) ── */
+
+// ── Init ──
+document.addEventListener("DOMContentLoaded", () => {
+  Simulation.init(document.getElementById("simCanvas"));
+  ParserView.init(document.getElementById("parseTreeCanvas"));
+  AutomataView.init(document.getElementById("nfaCanvas"));
+
+  _renderFSMStateList();
+  _renderDashboardMetrics();
+  AutomataView.render();
+  ParserView.render();
+
+  setInterval(() => {
+    document.getElementById("clockEl").textContent =
+      new Date().toLocaleTimeString("en", { hour12: false });
+    _renderDashboardMetrics();
+    AutomataView.render();   // keep NFA in sync with FSM
+  }, 500);
+
+  appendLog("info", "TOC-AV Formal Verification System v2.0 initialized");
+  appendLog("info", "Units active: TM (U3) | NPDA+CFG (U2) | NFA→DFA+DFA (U1) | Timed Automaton (U1+U3)");
+});
+
+// ── Tab switching ──
+function switchTab(tab) {
+  document.querySelectorAll(".tab-screen").forEach(el => el.classList.remove("active"));
+  document.querySelectorAll(".nav-tab").forEach(el => el.classList.remove("active"));
+
+  document.getElementById(`tab-${tab}`).classList.add("active");
+  document.querySelector(`[data-tab="${tab}"]`).classList.add("active");
+
+  // Re-render views that need it
+  if (tab === "grammar") {
+    ParserView.render();
+  } else if (tab === "automata") {
+    AutomataView.render();
+  }
+}
+
+// ── Compile pipeline ──
+function handleCompile() {
+  const raw = document.getElementById("routeInput").value.trim();
+  if (!raw) return;
+
+  const result = AppState.compile(raw);
+  _updateStatusPills();
+  AutomataView.render();
+  ParserView.render();
+  _renderFSMStateList();
+
+  if (!result.ok) {
+    showModal(false,
+      result.phase === "TM" ? "TURING MACHINE — HALT REJECT" : "NPDA — SYNTAX ERROR",
+      result.phase === "TM"
+        ? `Invalid tokens found: <b style="color:var(--red)">${AppState.tm.invalid.join(", ")}</b><br><br>
+           Valid alphabet Σ = { SEARCH, STOP, REVERSE, ALIGN, PARK, OBSTACLE, CLEAR }<br><br>
+           TM halted in <b>q_halt_reject</b>. Pipeline blocked.`
+        : `Token sequence violates CFG grammar.<br><br>
+           Required: <b style="color:var(--cyan)">S → SEARCH<sup>+</sup> STOP REVERSE ALIGN PARK</b><br><br>
+           PDA halted in <b>q_reject</b>. Route rejected.`
+    );
+    appendLog("err", `Compile FAILED [${result.phase}]: ${result.msg}`);
+    return;
+  }
+
+  Simulation.resetCar();
+  appendLog("ok", `Compile SUCCESS — TM accepted | NPDA accepted | Parse tree ready`);
+  showModal(true, "VERIFICATION COMPLETE",
+    `<b style="color:var(--green)">✓ Turing Machine:</b> Alphabet valid — tape accepted<br>
+     <b style="color:var(--green)">✓ NPDA / CFG:</b> Grammar parse accepted — parse tree rendered<br>
+     <b style="color:var(--green)">✓ DFA 5-tuple:</b> Ready for token execution<br><br>
+     Use the controls on Mission Control to drive the FSM.<br>
+     Switch to Grammar Lab to explore the parse tree and derivation.`
+  );
+}
+
+// ── Token send ──
+function sendToken(token) {
+  const result = AppState.sendToken(token);
+  if (!result.ok) {
+    appendLog("warn", result.msg || `Blocked: ${token}`);
+    return;
+  }
+  // Sync FSM log to UI
+  const last = AppState.fsm.log[AppState.fsm.log.length - 1];
+  if (last) appendLog(last.type, last.msg);
+  _renderFSMStateList();
+  _renderDashboardMetrics();
+  _renderFSMTransitionLog();
+}
+
+// ── Reset ──
+function handleReset() {
+  AppState.reset();
+  Simulation.resetCar();
+  ParserView.render();
+  AutomataView.render();
+  _renderFSMStateList();
+  _renderDashboardMetrics();
+  _updateStatusPills();
+  document.getElementById("routeInput").value = "";
+  document.getElementById("fsmTransitionLog").innerHTML = "";
+  document.getElementById("sysLog").innerHTML = "";
+  document.getElementById("metReaction").textContent = "—";
+  appendLog("info", "System reset — all automata cleared");
+}
+
+// ── FSM State List ──
+function _renderFSMStateList() {
+  const el = document.getElementById("fsmStateList");
+  if (!el) return;
+  el.innerHTML = "";
+
+  Object.entries(DFA_STATES_META).forEach(([id, meta]) => {
+    const isActive = AppState.fsm.state === id;
+    const div = document.createElement("div");
+    div.className = "fsm-state-row" + (isActive ? (id === "qE" ? " emerg" : " active") : "");
+    div.innerHTML = `
+      <div class="state-bubble">${id}</div>
+      <div>
+        <div class="state-info-name">${meta.symbol} ${meta.label}</div>
+        <div class="state-info-desc">${meta.desc}</div>
+      </div>`;
+    el.appendChild(div);
+  });
+}
+
+// ── Dashboard metrics ──
+function _renderDashboardMetrics() {
+  const fsm = AppState.fsm;
+  const stateEl = document.getElementById("metState");
+  if (stateEl) {
+    stateEl.textContent = fsm.state;
+    stateEl.className = "metric-card-value small" + (fsm.state === "qE" ? " red" : fsm.state === "q4" ? " green" : "");
+  }
+  const tokEl = document.getElementById("metTokens");
+  if (tokEl) tokEl.textContent = fsm.tokensProcessed;
+
+  const reactEl = document.getElementById("metReaction");
+  if (reactEl && fsm.reactionTime > 0) reactEl.textContent = fsm.reactionTime.toFixed(3) + "s";
+
+  const statusEl = document.getElementById("metStatus");
+  if (statusEl) {
+    const statusMap = { q0:"DRIVING", q1:"STOPPED", q2:"REVERSING", q3:"ALIGNING", q4:"PARKED", qE:"EMERGENCY" };
+    statusEl.textContent = statusMap[fsm.state] || "IDLE";
+    statusEl.className   = "metric-card-value small" + (fsm.state === "qE" ? " red" : fsm.state === "q4" ? " green" : "");
+  }
+
+  const badge = document.getElementById("simStateBadge");
+  if (badge) {
+    const badgeMap = { q0:"DRIVING", q1:"STOPPED", q2:"REVERSING", q3:"ALIGNING", q4:"PARKED ✓", qE:"EMERGENCY" };
+    badge.textContent = badgeMap[fsm.state] || "IDLE";
+    badge.className   = "badge" + (fsm.state === "qE" ? " badge-red" : fsm.state === "q4" ? " badge-green" : "");
+  }
+}
+
+// ── FSM transition log ──
+function _renderFSMTransitionLog() {
+  const el = document.getElementById("fsmTransitionLog");
+  if (!el) return;
+  el.innerHTML = "";
+  AppState.fsm.history.slice(-20).forEach(h => {
+    const div = document.createElement("div");
+    div.style.cssText = "font-size:0.6rem;line-height:1.8;color:var(--text-dim)";
+    div.innerHTML =
+      `<span style="color:var(--cyan)">${h.from}</span>`
+      + ` <span style="color:var(--dim)">—(${h.token})→</span> `
+      + `<span style="color:var(--green)">${h.to}</span>`;
+    el.appendChild(div);
+  });
+}
+
+// ── Status pills ──
+function _updateStatusPills() {
+  const tmOk  = AppState.tmResult?.accepted;
+  const cfgOk = AppState.pdaResult?.ok;
+
+  ["TM","CFG"].forEach(key => {
+    const ok  = key === "TM" ? tmOk : cfgOk;
+    const dot = document.getElementById(`dot${key}`);
+    const lbl = document.getElementById(`lbl${key}`);
+    if (dot) {
+      dot.className = ok === true ? "dot" : ok === false ? "dot red" : "dot yellow";
+    }
+    if (lbl) {
+      lbl.textContent = key === "TM"
+        ? (ok === true ? "TM ✓" : ok === false ? "TM ✗" : "TM")
+        : (ok === true ? "CFG ✓" : ok === false ? "CFG ✗" : "CFG");
+    }
+  });
+}
+
+// ── System log ──
+function appendLog(type, msg) {
+  const el = document.getElementById("sysLog");
+  if (!el) return;
+  const div = document.createElement("div");
+  div.className = `log-${type}`;
+  div.textContent = `[${new Date().toLocaleTimeString("en",{hour12:false})}] ${msg}`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── Modal ──
+function showModal(ok, title, body) {
+  const box = document.getElementById("modalBox");
+  box.className = ok ? "modal modal-ok" : "modal modal-err";
+  document.getElementById("modalTitle").textContent = title;
+  document.getElementById("modalBody").innerHTML = body;
+  document.getElementById("modalOverlay").classList.add("visible");
+}
+function closeModal() {
+  document.getElementById("modalOverlay").classList.remove("visible");
+}
+
+// ── Presets ──
+function setPreset(val) {
+  document.getElementById("routeInput").value = val;
+}
+
+// ── Keyboard ──
+document.addEventListener("keydown", e => {
+  if (e.target === document.getElementById("routeInput")) return;
+  const map = { s:"SEARCH", " ":"STOP", r:"REVERSE", a:"ALIGN", p:"PARK", o:"OBSTACLE", c:"CLEAR" };
+  const tok = map[e.key.toLowerCase()];
+  if (tok) { e.preventDefault(); sendToken(tok); }
+  if (e.key === "Enter") handleCompile();
+});
+</script>
+</body>
+</html>
