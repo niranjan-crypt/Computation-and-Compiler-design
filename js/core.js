@@ -19,6 +19,27 @@ const DFA_STATES_META = {
   qE: { label: "EMERGENCY", desc: "Obstacle detected", isStart: false, isFinal: false, symbol: "!" },
 };
 
+const DFA_DELTA = {
+  q0: { SEARCH: "q0", STOP: "q1" },
+  q1: { REVERSE: "q2" },
+  q2: { ALIGN: "q3" },
+  q3: { PARK: "q4" },
+  q4: {},
+  qE: { CLEAR: "q1" },
+};
+
+// DFA transition table rows for display [state, SEARCH, STOP, REVERSE, ALIGN, PARK]
+const DFA_TABLE = [
+  ["q0 →", "q0",  "q1", "—", "—", "—"],
+  ["q1",   "—",   "—",  "q2","—", "—"],
+  ["q2",   "—",   "—",  "—", "q3","—"],
+  ["q3",   "—",   "—",  "—", "—", "q4⊙"],
+  ["q4 ⊙", "—",  "—",  "—", "—", "—"],
+  ["qE",   "—",   "—",  "—", "—", "—"],
+];
+
 window.ALPHABET = ALPHABET;
 window.FULL_SIGMA = FULL_SIGMA;
 window.DFA_STATES_META = DFA_STATES_META;
+window.DFA_DELTA = DFA_DELTA;
+window.DFA_TABLE = DFA_TABLE;
