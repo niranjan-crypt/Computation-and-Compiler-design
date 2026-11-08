@@ -152,4 +152,120 @@ class TuringMachine {
   }
 }
 
-window.TuringMachine = TuringMachine;
+
+// ══════════════════════════════════════════════════════
+// NPDA — Non-deterministic Push Down Automaton  (Unit 2)
+// Explicit stack with push/pop logged at every step
+// ══════════════════════════════════════════════════════
+class NPDA {
+  constructor() {
+    this.reset();
+  }
+
+  reset() {
+    this.stack      = ["Z₀"];   // Z₀ = bottom-of-stack marker
+    this.state      = "q_start";
+    this.log        = [];
+    this.parseTree  = null;
+    this.derivation = [];       // leftmost derivation steps
+  }
+
+  _push(sym) {
+    this.stack.push(sym);
+    this.log.push({ action: "PUSH", sym, stack: [...this.stack], state: this.state });
+  }
+
+  _pop() {
+    const sym = this.stack.pop();
+    this.log.push({ action: "POP", sym, stack: [...this.stack], state: this.state });
+    return sym;
+  }
+
+  validate(tokens) {
+    this.reset();
+    // Filter OBSTACLE/CLEAR — not part of grammar
+    const gTokens = tokens.filter(t => !["OBSTACLE","CLEAR"].includes(t));
+
+    // Push start symbol
+    this._push("S");
+    this.derivation.push("S");
+
+    const root = { name: "S", children: [] };
+    const result = this._parseS(gTokens, 0, root);
+
+    if (result.ok && result.pos === gTokens.length) {
+      this.state     = "q_accept";
+      this.parseTree = root;
+      this.log.push({ action: "HALT", sym: "—", stack: [...this.stack], state: "q_accept" });
+      return { ok: true, tree: root };
+    } else {
+      this.state = "q_reject";
+      this.log.push({ action: "HALT", sym: "—", stack: [...this.stack], state: "q_reject" });
+      return { ok: false, tree: null };
+    }
+  }
+
+  _parseS(tokens, pos, node) {
+    // S → SEARCH PHASE
+    if (pos >= tokens.length || tokens[pos] !== "SEARCH") {
+      return { ok: false, pos };
+    }
+    this._pop();                // pop S
+    this._push("PHASE");
+    this._push("SEARCH");
+    this.derivation.push("SEARCH PHASE");
+
+    const sNode = { name: "SEARCH", children: [] };
+    node.children.push(sNode);
+    pos++;
+    this._pop();                // match SEARCH
+
+    const phaseNode = { name: "PHASE", children: [] };
+    node.children.push(phaseNode);
+    this._pop();                // pop PHASE symbol (will handle inside _parsePhase)
+
+    return this._parsePhase(tokens, pos, phaseNode);
+  }
+
+  _parsePhase(tokens, pos, node) {
+    if (pos < tokens.length && tokens[pos] === "SEARCH") {
+      // PHASE → SEARCH PHASE
+      this._push("PHASE");
+      this._push("SEARCH");
+      const last = this.derivation[this.derivation.length - 1];
+      this.derivation.push(last.replace("PHASE", "SEARCH PHASE"));
+
+      const sNode = { name: "SEARCH", children: [] };
+      node.children.push(sNode);
+      pos++;
+      this._pop(); // match SEARCH
+
+      const phaseNode = { name: "PHASE", children: [] };
+      node.children.push(phaseNode);
+      this._pop(); // pop PHASE
+
+      return this._parsePhase(tokens, pos, phaseNode);
+    }
+
+    // PHASE → STOP REVERSE ALIGN PARK  (Terminal production)
+    const terminals = ["STOP", "REVERSE", "ALIGN", "PARK"];
+    this._push("PARK");
+    this._push("ALIGN");
+    this._push("REVERSE");
+    this._push("STOP");
+    const last = this.derivation[this.derivation.length - 1];
+    this.derivation.push(last.replace("PHASE", "STOP REVERSE ALIGN PARK"));
+
+    for (const exp of terminals) {
+      if (pos >= tokens.length || tokens[pos] !== exp) {
+        return { ok: false, pos };
+      }
+      node.children.push({ name: exp, children: [] });
+      this._pop(); // match terminal
+      pos++;
+    }
+    return { ok: true, pos };
+  }
+}
+
+window.NPDA = NPDA;
