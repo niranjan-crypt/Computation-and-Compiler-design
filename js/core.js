@@ -57,9 +57,69 @@ const NFA_DEF = {
   dfaMap: { n0:"q0", n1:"q0", n2:"q1", n3:"q2", n4:"q3", n5:"q4" }
 };
 
-window.ALPHABET = ALPHABET;
-window.FULL_SIGMA = FULL_SIGMA;
-window.DFA_STATES_META = DFA_STATES_META;
-window.DFA_DELTA = DFA_DELTA;
-window.DFA_TABLE = DFA_TABLE;
-window.NFA_DEF = NFA_DEF;
+
+// ══════════════════════════════════════════════════════
+// TURING MACHINE  (Unit 3)
+// Simulates the JFLAP diagram:
+//   q0 --(P;b,R)--> q1 --(□;r,R)--> q2 --(□;s,S)--> q3(accept)
+// Extended to scan full tape and validate alphabet
+// ══════════════════════════════════════════════════════
+class TuringMachine {
+  constructor() {
+    this.reset();
+  }
+
+  reset() {
+    this.tape      = [];
+    this.head      = 0;
+    this.state     = "q_init";
+    this.log       = [];
+    this.steps     = [];   // snapshots for step-through
+    this.accepted  = null;
+    this.invalid   = [];
+  }
+
+  load(tokens) {
+    this.reset();
+    // Tape: blank + tokens + blank (standard TM format)
+    this.tape  = ["□", ...tokens.map(t => t), "□"];
+    this.head  = 1;
+    this.state = "q_scan";
+    this.log.push({ state: "q_scan", msg: "Tape loaded. Head at cell 1. Begin scan." });
+  }
+
+  run() {
+    const result = { accepted: true, invalidTokens: [], normalizedTokens: [] };
+
+    // Phase 1: alphabet validation scan (q_scan phase)
+    for (let i = 1; i < this.tape.length - 1; i++) {
+      this.head = i;
+      const sym = this.tape[i];
+
+      if (FULL_SIGMA.includes(sym)) {
+        this.state = "q_valid";
+        this.tape[i] = sym; // no change, just "reading"
+        result.normalizedTokens.push(sym);
+        this.log.push({ state: "q_valid", msg: `READ '${sym}' @ [${i}] ∈ Σ — VALID ✓`, head: i });
+        this.steps.push({ tape: [...this.tape], head: i, state: "q_valid", mark: "ok" });
+      } else {
+        this.state = "q_reject";
+        result.invalidTokens.push(sym);
+        result.accepted = false;
+        this.log.push({ state: "q_reject", msg: `READ '${sym}' @ [${i}] ∉ Σ — REJECT ✗`, head: i });
+        this.steps.push({ tape: [...this.tape], head: i, state: "q_reject", mark: "err" });
+      }
+    }
+
+    if (!result.accepted) {
+      this.state = "q_halt_reject";
+      this.log.push({ state: "q_halt_reject", msg: `HALT-REJECT: ${result.invalidTokens.length} invalid symbol(s) found.` });
+    }
+
+    this.accepted = result.accepted;
+    this.invalid  = result.invalidTokens;
+    return result;
+  }
+}
+
+window.TuringMachine = TuringMachine;
