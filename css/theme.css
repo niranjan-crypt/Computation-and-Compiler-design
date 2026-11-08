@@ -1,0 +1,80 @@
+/* ═══════════════════════════════════════════════════════
+   TOC-AV  |  theme.css  |  Single source of truth for all styles
+   ═══════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap');
+
+/* ── CSS Variables ── */
+:root {
+  --bg:        #020810;
+  --bg2:       #060f1c;
+  --bg3:       #0a1628;
+  --panel:     rgba(0, 200, 255, 0.04);
+  --border:    rgba(0, 200, 255, 0.15);
+  --border-hi: rgba(0, 200, 255, 0.4);
+
+  --cyan:      #00c8ff;
+  --green:     #00ff88;
+  --red:       #ff3355;
+  --yellow:    #ffcc00;
+  --purple:    #9966ff;
+  --orange:    #ff8844;
+  --dim:       rgba(0, 200, 255, 0.3);
+  --text:      #a8cce0;
+  --text-dim:  rgba(168, 204, 224, 0.5);
+
+  --glow-c:    0 0 14px rgba(0, 200, 255, 0.55);
+  --glow-g:    0 0 14px rgba(0, 255, 136, 0.55);
+  --glow-r:    0 0 14px rgba(255, 51,  85,  0.55);
+  --glow-p:    0 0 14px rgba(153, 102, 255, 0.55);
+  --glow-y:    0 0 14px rgba(255, 204, 0,   0.55);
+
+  --font-mono:    'Share Tech Mono', monospace;
+  --font-display: 'Orbitron', sans-serif;
+  --font-ui:      'Rajdhani', sans-serif;
+
+  --radius: 2px;
+  --transition: 0.2s ease;
+}
+
+/* ── Reset & Base ── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  font-family: var(--font-mono);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── Scanlines overlay ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 9998;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.06) 2px,
+    rgba(0, 0, 0, 0.06) 4px
+  );
+  pointer-events: none;
+}
+
+/* ── Grid background ── */
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(0, 200, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 200, 255, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+}
+
+#app { position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 100vh; }
