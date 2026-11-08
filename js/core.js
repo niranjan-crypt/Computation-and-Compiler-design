@@ -268,4 +268,62 @@ class NPDA {
   }
 }
 
-window.NPDA = NPDA;
+
+// ══════════════════════════════════════════════════════
+// TIMED FSM / DFA  (Unit 1 + Unit 3)
+// 5-tuple DFA with clock variable for reaction time
+// ══════════════════════════════════════════════════════
+class TimedFSM {
+  constructor() {
+    this.reset();
+  }
+
+  reset() {
+    this.state          = "q0";
+    this.clockStart     = 0;
+    this.reactionTime   = 0;    // ΔT in seconds
+    this.tokensProcessed = 0;
+    this.history        = [];   // [{from, token, to, time}]
+    this.log            = [];
+  }
+
+  process(token) {
+    this.tokensProcessed++;
+    const from = this.state;
+
+    // Timed Automaton: OBSTACLE triggers clock start
+    if (token === "OBSTACLE" && this.state !== "q4") {
+      this.state      = "qE";
+      this.clockStart = performance.now();
+      this._addLog("warn", `δ(${from}, OBSTACLE) → qE :: Clock T started`);
+      this.history.push({ from, token, to: "qE", time: Date.now() });
+      return { ok: true };
+    }
+
+    // CLEAR measures ΔT (Timed Automaton constraint verification)
+    if (token === "CLEAR" && this.state === "qE") {
+      this.reactionTime = (performance.now() - this.clockStart) / 1000;
+      this.state        = "q1";
+      this._addLog("ok", `δ(qE, CLEAR) → q1 :: ΔT = ${this.reactionTime.toFixed(3)}s`);
+      this.history.push({ from: "qE", token, to: "q1", time: Date.now() });
+      return { ok: true, reaction: this.reactionTime };
+    }
+
+    const next = DFA_DELTA[this.state]?.[token];
+    if (next !== undefined) {
+      this.state = next;
+      this._addLog("info", `δ(${from}, ${token}) → ${next}`);
+      this.history.push({ from, token, to: next, time: Date.now() });
+      return { ok: true };
+    } else {
+      this._addLog("err", `δ(${from}, ${token}) = undefined — transition blocked`);
+      return { ok: false };
+    }
+  }
+
+  _addLog(type, msg) {
+    this.log.push({ type, msg, ts: new Date().toLocaleTimeString("en", { hour12: false }) });
+  }
+}
+
+window.TimedFSM = TimedFSM;
