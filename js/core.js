@@ -38,8 +38,28 @@ const DFA_TABLE = [
   ["qE",   "—",   "—",  "—", "—", "—"],
 ];
 
+// NFA definition (with ε-transitions, pre-subset-construction)
+const NFA_DEF = {
+  states:  ["n0", "n1", "n2", "n3", "n4", "n5"],
+  labels:  ["START", "SRCH*", "STOP", "REV", "ALIGN", "PARK⊙"],
+  alphabet: ALPHABET,
+  delta: {
+    n0: { SEARCH: ["n0", "n1"], ε: ["n1"] },
+    n1: { STOP:   ["n2"] },
+    n2: { REVERSE:["n3"] },
+    n3: { ALIGN:  ["n4"] },
+    n4: { PARK:   ["n5"] },
+    n5: {},
+  },
+  start:  "n0",
+  accept: ["n5"],
+  // Mapping NFA state → DFA state for active highlighting
+  dfaMap: { n0:"q0", n1:"q0", n2:"q1", n3:"q2", n4:"q3", n5:"q4" }
+};
+
 window.ALPHABET = ALPHABET;
 window.FULL_SIGMA = FULL_SIGMA;
 window.DFA_STATES_META = DFA_STATES_META;
 window.DFA_DELTA = DFA_DELTA;
 window.DFA_TABLE = DFA_TABLE;
+window.NFA_DEF = NFA_DEF;
