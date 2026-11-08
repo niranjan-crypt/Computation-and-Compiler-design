@@ -142,10 +142,107 @@ const Simulation = (() => {
     car.speed = (state === "q0") ? 1.4 : (state === "q2") ? -0.9 : 0;
   }
 
-  function _drawCar(state) {}
-  function _drawHUD(state, W, H) {}
-  function _loop() { _draw(); animFrame = requestAnimationFrame(_loop); }
-  function resetCar() { car.trail = []; }
+  function _drawCar(state) {
+    const cx = car.x, cy = car.y, W = car.w, H = car.h;
+
+    const colorMap = {
+      q0: "#0099cc", q1: "#ffcc00", q2: "#ff8844",
+      q3: "#9966ff", q4: "#00ff88", qE: "#ff3355",
+    };
+    const carColor = colorMap[state] || "#0099cc";
+
+    // Headlight glow (when driving forward)
+    if (state === "q0") {
+      const g = ctx.createRadialGradient(cx+W/2, cy, 2, cx+W/2, cy-30, 50);
+      g.addColorStop(0, "rgba(255,255,180,0.25)");
+      g.addColorStop(1, "rgba(255,255,180,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(cx-20, cy-50, W+40, 50);
+    }
+
+    // Body shadow
+    ctx.shadowColor = carColor;
+    ctx.shadowBlur  = state === "qE" ? 20 : 10;
+
+    // Car body
+    ctx.fillStyle   = carColor + "22";
+    ctx.strokeStyle = carColor;
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(cx, cy, W, H, 3);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Windshield
+    ctx.fillStyle = "rgba(0,200,255,0.18)";
+    ctx.fillRect(cx+4, cy+7, W-8, 11);
+
+    // Rear window
+    ctx.fillStyle = "rgba(0,200,255,0.1)";
+    ctx.fillRect(cx+4, cy+H-18, W-8, 9);
+
+    // Wheels
+    const wheelPositions = [[-5,8],[W+1,8],[-5,H-18],[W+1,H-18]];
+    wheelPositions.forEach(([wx,wy]) => {
+      ctx.fillStyle   = "#222";
+      ctx.strokeStyle = "#444";
+      ctx.lineWidth   = 0.5;
+      ctx.fillRect(cx+wx, cy+wy, 5, 10);
+      ctx.strokeRect(cx+wx, cy+wy, 5, 10);
+    });
+
+    // State label below car
+    ctx.fillStyle = carColor;
+    ctx.font      = "bold 9px 'Share Tech Mono', monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(state, cx+W/2, cy+H+13);
+  }
+
+  function _drawHUD(state, W, H) {
+    // Emergency overlay
+    if (state === "qE") {
+      const alpha = 0.08 + 0.06 * Math.sin(scene.frameCount * 0.25);
+      ctx.fillStyle = `rgba(255,51,85,${alpha})`;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.fillStyle = "#ff3355";
+      ctx.font      = "bold 13px 'Orbitron', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("⚠  EMERGENCY BRAKE ACTIVE", W/2, H/2 - 12);
+
+      ctx.fillStyle = "rgba(255,51,85,0.6)";
+      ctx.font      = "9px 'Share Tech Mono', monospace";
+      ctx.fillText("PRESS [C] TO CLEAR OBSTACLE", W/2, H/2 + 10);
+    }
+
+    // Park complete banner
+    if (state === "q4") {
+      ctx.fillStyle = "rgba(0,255,136,0.9)";
+      ctx.font      = "bold 11px 'Orbitron', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("✓  VEHICLE PARKED — MISSION COMPLETE", W/2, 22);
+    }
+
+    // State label top-left
+    ctx.fillStyle = "rgba(0,200,255,0.5)";
+    ctx.font      = "9px 'Share Tech Mono', monospace";
+    ctx.textAlign = "left";
+    ctx.fillText(`FSM: ${state}  |  TOKENS: ${AppState.fsm.tokensProcessed}`, 10, H - 8);
+  }
+
+  function _loop() {
+    _draw();
+    animFrame = requestAnimationFrame(_loop);
+  }
+
+  function resetCar() {
+    car.trail = [];
+    car.x = canvas ? canvas.width * 0.22 : 100;
+    car.y = canvas ? canvas.height * 0.12 : 40;
+    car.speed = 0;
+  }
+
   return { init, resetCar };
 })();
 
