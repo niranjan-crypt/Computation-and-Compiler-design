@@ -111,7 +111,37 @@ class TuringMachine {
       }
     }
 
-    if (!result.accepted) {
+    // Phase 2: JFLAP simulation — find PARK token, write b/r/s
+    // q0 --(PARK;b,R)--> q1 --(□;r,R)--> q2 --(□;s,S)--> q3
+    if (result.accepted) {
+      const parkIdx = this.tape.indexOf("PARK");
+      if (parkIdx !== -1) {
+        this.head = parkIdx;
+        this.state = "q_tm0";
+        this.log.push({ state: "q_tm0", msg: `JFLAP Phase: Found 'PARK' @ [${parkIdx}]. Write 'b', move R.`, head: parkIdx });
+        this.tape[parkIdx] = "b";
+        this.steps.push({ tape: [...this.tape], head: parkIdx, state: "q_tm0", mark: "written" });
+
+        this.head = parkIdx + 1;
+        this.state = "q_tm1";
+        this.log.push({ state: "q_tm1", msg: `Read '□' @ [${this.head}]. Write 'r', move R.`, head: this.head });
+        this.tape[this.head] = "r";
+        this.steps.push({ tape: [...this.tape], head: this.head, state: "q_tm1", mark: "written" });
+
+        this.head = parkIdx + 2;
+        this.state = "q_tm2";
+        this.log.push({ state: "q_tm2", msg: `Read '□' @ [${this.head}]. Write 's', STAY.`, head: this.head });
+        this.tape[this.head] = "s";
+        this.steps.push({ tape: [...this.tape], head: this.head, state: "q_tm2", mark: "written" });
+
+        this.state = "q_halt_accept";
+        this.log.push({ state: "q_halt_accept", msg: "HALT-ACCEPT: Brake/Reverse/Stop signals written to tape." });
+        this.steps.push({ tape: [...this.tape], head: this.head, state: "q_halt_accept", mark: "ok" });
+      } else {
+        this.state = "q_halt_accept";
+        this.log.push({ state: "q_halt_accept", msg: "HALT-ACCEPT: Alphabet valid. No PARK token — JFLAP phase skipped." });
+      }
+    } else {
       this.state = "q_halt_reject";
       this.log.push({ state: "q_halt_reject", msg: `HALT-REJECT: ${result.invalidTokens.length} invalid symbol(s) found.` });
     }
