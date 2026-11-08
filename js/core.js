@@ -326,4 +326,83 @@ class TimedFSM {
   }
 }
 
-window.TimedFSM = TimedFSM;
+
+// ══════════════════════════════════════════════════════
+// APP STATE — single shared object, no localStorage needed
+// ══════════════════════════════════════════════════════
+const AppState = {
+  // Instances
+  tm:   new TuringMachine(),
+  npda: new NPDA(),
+  fsm:  new TimedFSM(),
+
+  // Results
+  tmResult:   null,
+  pdaResult:  null,
+  rawTokens:  [],
+  compiled:   false,
+
+  // Notification callbacks (set by views)
+  onLog:  null,   // (type, msg) => void
+  onStateChange: null,
+
+  reset() {
+    this.tm.reset();
+    this.npda.reset();
+    this.fsm.reset();
+    this.tmResult  = null;
+    this.pdaResult = null;
+    this.rawTokens = [];
+    this.compiled  = false;
+  },
+
+  compile(rawInput) {
+    this.reset();
+    const tokens = rawInput.trim().toUpperCase().split(/\s+/).filter(Boolean);
+    this.rawTokens = tokens;
+
+    // Step 1 — TM validates alphabet
+    this.tm.load(tokens);
+    this.tmResult = this.tm.run();
+
+    if (!this.tmResult.accepted) {
+      return {
+        ok: false,
+        phase: "TM",
+        msg: `Invalid symbols: ${this.tmResult.invalidTokens.join(", ")}`
+      };
+    }
+
+    // Step 2 — NPDA validates CFG
+    this.pdaResult = this.npda.validate(tokens);
+
+    if (!this.pdaResult.ok) {
+      return {
+        ok: false,
+        phase: "NPDA",
+        msg: "Input does not conform to CFG grammar"
+      };
+    }
+
+    this.compiled = true;
+    return { ok: true };
+  },
+
+  sendToken(token) {
+    if (!this.compiled && !["OBSTACLE","CLEAR"].includes(token)) {
+      return { ok: false, msg: "Compile route first" };
+    }
+    return this.fsm.process(token);
+  }
+};
+
+// Export for use in other scripts (global on window)
+window.AppState     = AppState;
+window.TuringMachine = TuringMachine;
+window.NPDA         = NPDA;
+window.TimedFSM     = TimedFSM;
+window.DFA_STATES_META = DFA_STATES_META;
+window.DFA_DELTA    = DFA_DELTA;
+window.DFA_TABLE    = DFA_TABLE;
+window.NFA_DEF      = NFA_DEF;
+window.ALPHABET     = ALPHABET;
