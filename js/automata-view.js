@@ -177,12 +177,181 @@ const AutomataView = (() => {
     ctx.fill();
   }
 
-  function render() {
-    _drawNFA();
-    _renderDFATable();
-    _renderSubsetConstruction();
+  // ══════════════════════════════════════════
+  // TURING MACHINE TAPE
+  // ══════════════════════════════════════════
+  function _renderTMTape() {
+    const el = document.getElementById("tmTapeEl");
+    if (!el) return;
+
+    const tm    = AppState.tm;
+    const steps = tm.steps;
+
+    if (!tm.tape || tm.tape.length === 0) {
+      el.innerHTML = `<div style="font-size:0.6rem;color:var(--dim);padding:10px">Load a route to see tape execution</div>`;
+      _updateTMState("q_init");
+      return;
+    }
+
+    // Clamp step index
+    if (tmStepIndex >= steps.length) tmStepIndex = steps.length - 1;
+    if (tmStepIndex < 0)             tmStepIndex = 0;
+
+    const snap = steps[tmStepIndex] || { tape: tm.tape, head: tm.head, state: tm.state, mark: "ok" };
+    const tape = snap.tape;
+    const head = snap.head;
+
+    el.innerHTML = "";
+    tape.forEach((sym, i) => {
+      const cell = document.createElement("div");
+      cell.className = "tm-cell";
+      if (sym === "□")               cell.classList.add("blank");
+      else if (i === head && snap.mark === "err")     cell.classList.add("rejected");
+      else if (i === head)           cell.classList.add("head");
+      else if (["b","r","s"].includes(sym)) cell.classList.add("written");
+      cell.textContent = sym.length > 4 ? sym.slice(0,4) : sym;
+
+      if (i === head) {
+        const arrow = document.createElement("div");
+        arrow.className   = "tm-head-arrow";
+        arrow.textContent = "▲";
+        cell.appendChild(arrow);
+      }
+      el.appendChild(cell);
+    });
+
+    _updateTMState(snap.state);
+    _updateTMStepCounter(tmStepIndex, steps.length);
   }
-  return { init, render };
+
+  function _updateTMState(state) {
+    const el = document.getElementById("tmCurrentState");
+    if (el) el.textContent = state;
+    // Color based on state
+    const colors = {
+      q_halt_accept: "var(--green)",
+      q_halt_reject: "var(--red)",
+      q_tm0: "var(--yellow)", q_tm1: "var(--yellow)", q_tm2: "var(--yellow)",
+    };
+    if (el) el.style.color = colors[state] || "var(--yellow)";
+  }
+
+  function _updateTMStepCounter(idx, total) {
+    const el = document.getElementById("tmStepCounter");
+    if (el) el.textContent = `Step ${idx + 1} / ${total}`;
+  }
+
+  function tmStepForward() {
+    if (tmStepIndex < AppState.tm.steps.length - 1) tmStepIndex++;
+    _renderTMTape();
+    _renderTMLog();
+  }
+
+  function tmStepBack() {
+    if (tmStepIndex > 0) tmStepIndex--;
+    _renderTMTape();
+    _renderTMLog();
+  }
+
+  function tmReset() {
+    tmStepIndex = 0;
+    _renderTMTape();
+    _renderTMLog();
+  }
+
+  // ── TM Log ──
+  function _renderTMLog() {
+    const el = document.getElementById("tmLogEl");
+    if (!el) return;
+
+    const logs = AppState.tm.log;
+    if (!logs || logs.length === 0) {
+      el.innerHTML = `<div class="log-dim">No TM output yet</div>`;
+      return;
+    }
+
+    el.innerHTML = "";
+    const visible = logs.slice(0, tmStepIndex + 1);
+    visible.forEach((entry, i) => {
+      const div = document.createElement("div");
+      const isCurrentStep = (i === tmStepIndex);
+      const color = entry.state.includes("reject") ? "var(--red)"
+                  : entry.state.includes("accept") ? "var(--green)"
+                  : entry.state.includes("tm")     ? "var(--yellow)"
+                  : "var(--text-dim)";
+      div.style.cssText = `color:${isCurrentStep ? "var(--cyan)" : color};font-size:0.6rem;line-height:1.9;
+        ${isCurrentStep ? "background:rgba(0,200,255,0.06);padding:1px 4px;" : ""}`;
+      div.innerHTML = `<span style="color:var(--dim)">[${entry.state}]</span> ${entry.msg}`;
+      el.appendChild(div);
+    });
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // ══════════════════════════════════════════
+  // DFA TRANSITION TABLE
+  // ══════════════════════════════════════════
+  function _renderDFATable() {
+    const body = document.getElementById("dfaTableBody");
+    if (!body) return;
+
+    const current = AppState.fsm.state;
+    const stateIds = ["q0","q1","q2","q3","q4","qE"];
+
+    body.innerHTML = "";
+    DFA_TABLE.forEach((row, ri) => {
+      const tr  = document.createElement("tr");
+      const sid = stateIds[ri];
+
+      row.forEach((cell, ci) => {
+        const td = document.createElement("td");
+        td.textContent = cell;
+        if (sid === current) td.classList.add("active-row");
+        if (cell === "—")    td.classList.add("dead");
+        if (cell.includes("⊙")) td.classList.add("final-state");
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  // ══════════════════════════════════════════
+  // SUBSET CONSTRUCTION (NFA → DFA)
+  // ══════════════════════════════════════════
+  function _renderSubsetConstruction() {
+    const el = document.getElementById("subsetConstructionEl");
+    if (!el) return;
+
+    // Pre-computed subset construction result shown as readable steps
+    const steps = [
+      { nfaSet: "{n0}",        symbol: "SEARCH", resultSet: "{n0,n1}",   dfaState: "q0*" },
+      { nfaSet: "{n0,n1}",     symbol: "SEARCH", resultSet: "{n0,n1}",   dfaState: "q0 (self)" },
+      { nfaSet: "{n0,n1}",     symbol: "STOP",   resultSet: "{n2}",      dfaState: "q1" },
+      { nfaSet: "{n2}",        symbol: "REVERSE",resultSet: "{n3}",      dfaState: "q2" },
+      { nfaSet: "{n3}",        symbol: "ALIGN",  resultSet: "{n4}",      dfaState: "q3" },
+      { nfaSet: "{n4}",        symbol: "PARK",   resultSet: "{n5}",      dfaState: "q4 ✓" },
+    ];
+
+    el.innerHTML = "";
+    steps.forEach(s => {
+      const div = document.createElement("div");
+      div.style.cssText = "font-size:0.6rem;line-height:1.9;padding:2px 0;";
+      div.innerHTML =
+        `<span style="color:var(--cyan)">${s.nfaSet}</span>`
+        + `<span style="color:var(--dim)"> ×(${s.symbol})→ </span>`
+        + `<span style="color:var(--green)">${s.resultSet}</span>`
+        + `<span style="color:var(--dim)"> ≡ </span>`
+        + `<span style="color:var(--yellow)">${s.dfaState}</span>`;
+      el.appendChild(div);
+    });
+  }
+
+  return {
+    init,
+    render,
+    tmStepForward,
+    tmStepBack,
+    tmReset,
+  };
 })();
 
 window.AutomataView = AutomataView;
